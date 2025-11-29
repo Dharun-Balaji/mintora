@@ -24,34 +24,42 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(appSettingsProvider);
+    final settingsAsync = ref.watch(appSettingsProvider);
 
-    ThemeMode themeMode;
-    switch (settings.themeMode) {
-      case 'light':
-        themeMode = ThemeMode.light;
-        break;
-      case 'dark':
-        themeMode = ThemeMode.dark;
-        break;
-      case 'amoled':
-        themeMode = ThemeMode.dark; // Handle AMOLED in theme data
-        break;
-      default:
-        themeMode = ThemeMode.system;
-    }
+    return settingsAsync.when(
+      loading: () => MaterialApp(
+        home: const Scaffold(body: Center(child: CircularProgressIndicator())),
+      ),
+      error: (err, stack) => MaterialApp(
+        home: Scaffold(body: Center(child: Text('Error: \$err'))),
+      ),
+      data: (settings) {
+        ThemeMode themeMode;
+        switch (settings.themeMode) {
+          case 'light':
+            themeMode = ThemeMode.light;
+            break;
+          case 'dark':
+            themeMode = ThemeMode.dark;
+            break;
+          case 'amoled':
+            themeMode = ThemeMode.dark;
+            break;
+          default:
+            themeMode = ThemeMode.system;
+        }
 
-    // Theme logic handled directly in MaterialApp
-
-    return MaterialApp.router(
-      title: 'Finance AI',
-      theme: AppTheme.lightTheme,
-      darkTheme: settings.themeMode == 'amoled'
-          ? AppTheme.amoledTheme
-          : AppTheme.darkTheme,
-      themeMode: themeMode,
-      routerConfig: router,
-      debugShowCheckedModeBanner: false,
+        return MaterialApp.router(
+          title: 'Finance AI',
+          theme: AppTheme.lightTheme,
+          darkTheme: settings.themeMode == 'amoled'
+              ? AppTheme.amoledTheme
+              : AppTheme.darkTheme,
+          themeMode: themeMode,
+          routerConfig: router,
+          debugShowCheckedModeBanner: false,
+        );
+      },
     );
   }
 }

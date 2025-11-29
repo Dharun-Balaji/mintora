@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_provider.dart';
+import '../models/settings.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -15,8 +16,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    final settings = ref.read(appSettingsProvider);
-    _apiKeyController = TextEditingController(text: settings.apiKey);
+    _apiKeyController = TextEditingController();
   }
 
   @override
@@ -25,10 +25,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.dispose();
   }
 
-  void _saveApiKey() {
-    final settings = ref.read(appSettingsProvider);
+  void _saveApiKey(AppSettings currentSettings) {
     final box = ref.read(settingsBoxProvider);
-    final newSettings = settings.copyWith(apiKey: _apiKeyController.text);
+    final newSettings = currentSettings.copyWith(
+      apiKey: _apiKeyController.text,
+    );
 
     if (box.isEmpty) {
       box.add(newSettings);
@@ -41,86 +42,101 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ).showSnackBar(const SnackBar(content: Text('API Key Saved')));
   }
 
-  void _updateTheme(String mode) {
-    final settings = ref.read(appSettingsProvider);
+  void _updateTheme(AppSettings currentSettings, String mode) {
     final box = ref.read(settingsBoxProvider);
-    final newSettings = settings.copyWith(themeMode: mode);
+    final newSettings = currentSettings.copyWith(themeMode: mode);
 
     if (box.isEmpty) {
       box.add(newSettings);
     } else {
       box.putAt(0, newSettings);
     }
-    // Riverpod will automatically rebuild listeners
   }
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(appSettingsProvider);
+    final settingsAsync = ref.watch(appSettingsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Gemini API Key',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('Required for AI features'),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _apiKeyController,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      hintText: 'Enter your API Key',
-                    ),
-                    obscureText: true,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _saveApiKey,
-                    child: const Text('Save Key'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Theme',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'light', label: Text('Light')),
-                      ButtonSegment(value: 'dark', label: Text('Dark')),
-                      ButtonSegment(value: 'amoled', label: Text('AMOLED')),
+      body: settingsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: \$err')),
+        data: (settings) {
+          // Update controller text only if it's empty (first load) to avoid overwriting user input
+          if (_apiKeyController.text.isEmpty && settings.apiKey != null) {
+            _apiKeyController.text = settings.apiKey!;
+          }
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Gemini API Key',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('Required for AI features'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _apiKeyController,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          hintText: 'Enter your API Key',
+                        ),
+                        obscureText: true,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () => _saveApiKey(settings),
+                        child: const Text('Save Key'),
+                      ),
                     ],
-                    selected: {settings.themeMode},
-                    onSelectionChanged: (Set<String> newSelection) {
-                      _updateTheme(newSelection.first);
-                    },
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ],
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Theme',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(value: 'light', label: Text('Light')),
+                          ButtonSegment(value: 'dark', label: Text('Dark')),
+                          ButtonSegment(value: 'amoled', label: Text('AMOLED')),
+                        ],
+                        selected: {settings.themeMode},
+                        onSelectionChanged: (Set<String> newSelection) {
+                          _updateTheme(settings, newSelection.first);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
