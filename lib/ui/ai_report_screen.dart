@@ -17,7 +17,6 @@ class _AIReportScreenState extends ConsumerState<AIReportScreen> {
   @override
   void initState() {
     super.initState();
-    // Defer the provider read to the next frame or use ref.read in a method
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadReport();
     });
@@ -25,8 +24,8 @@ class _AIReportScreenState extends ConsumerState<AIReportScreen> {
 
   void _loadReport() {
     final service = ref.read(geminiServiceProvider);
-    final transactions = ref.read(transactionsProvider);
-    final goals = ref.read(goalsProvider);
+    final transactionsAsync = ref.read(transactionsProvider);
+    final goalsAsync = ref.read(goalsProvider);
 
     if (service == null) {
       setState(() {
@@ -37,8 +36,18 @@ class _AIReportScreenState extends ConsumerState<AIReportScreen> {
       return;
     }
 
+    if (!transactionsAsync.hasValue || !goalsAsync.hasValue) {
+      setState(() {
+        _reportFuture = Future.value("Loading data... Please try again.");
+      });
+      return;
+    }
+
     setState(() {
-      _reportFuture = service.generateFullReport(transactions, goals);
+      _reportFuture = service.generateFullReport(
+        transactionsAsync.value!,
+        goalsAsync.value!,
+      );
     });
   }
 
@@ -59,6 +68,10 @@ class _AIReportScreenState extends ConsumerState<AIReportScreen> {
                         CircularProgressIndicator(),
                         SizedBox(height: 16),
                         Text('Analyzing your financial data...'),
+                        Text(
+                          'This may take a few seconds',
+                          style: TextStyle(color: Colors.grey),
+                        ),
                       ],
                     ),
                   );
@@ -68,7 +81,21 @@ class _AIReportScreenState extends ConsumerState<AIReportScreen> {
                 }
                 return SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
-                  child: MarkdownBody(data: snapshot.data ?? 'No data'),
+                  child: MarkdownBody(
+                    data: snapshot.data ?? 'No data',
+                    styleSheet: MarkdownStyleSheet(
+                      h1: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      h2: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      p: const TextStyle(fontSize: 16, height: 1.5),
+                      listBullet: const TextStyle(fontSize: 16),
+                    ),
+                  ),
                 );
               },
             ),

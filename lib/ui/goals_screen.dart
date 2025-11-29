@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/data_provider.dart';
 import '../providers/ai_provider.dart';
 import '../models/goal.dart';
@@ -22,58 +23,77 @@ class GoalsScreen extends ConsumerWidget {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 16,
-            right: 16,
-            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            left: 20,
+            right: 20,
+            top: 20,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
                 'Set New Goal',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               TextField(
                 controller: titleController,
-                decoration: const InputDecoration(labelText: 'Goal Title'),
-              ),
-              TextField(
-                controller: targetController,
-                decoration: const InputDecoration(labelText: 'Target Amount'),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: currentController,
-                decoration: const InputDecoration(
-                  labelText: 'Current Saved Amount',
+                decoration: InputDecoration(
+                  labelText: 'Goal Title',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  prefixIcon: const Icon(Icons.flag),
                 ),
-                keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  const Text('Deadline: '),
-                  TextButton(
-                    onPressed: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: selectedDate,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(
-                          const Duration(days: 365 * 5),
-                        ),
-                      );
-                      if (date != null) {
-                        setState(() => selectedDate = date);
-                      }
-                    },
-                    child: Text(DateFormat.yMMMd().format(selectedDate)),
+              TextField(
+                controller: targetController,
+                decoration: InputDecoration(
+                  labelText: 'Target Amount',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ],
+                  prefixIcon: const Icon(Icons.track_changes),
+                ),
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+              TextField(
+                controller: currentController,
+                decoration: InputDecoration(
+                  labelText: 'Current Saved Amount',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  prefixIcon: const Icon(Icons.savings),
+                ),
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                title: const Text('Target Date'),
+                subtitle: Text(DateFormat.yMMMd().format(selectedDate)),
+                trailing: const Icon(Icons.calendar_today),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade400),
+                ),
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: selectedDate,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+                  );
+                  if (date != null) {
+                    setState(() => selectedDate = date);
+                  }
+                },
+              ),
+              const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: () async {
                   final title = titleController.text;
@@ -95,19 +115,18 @@ class GoalsScreen extends ConsumerWidget {
 
                     // Trigger AI Plan generation in background
                     final service = ref.read(geminiServiceProvider);
-                    final transactions = ref.read(transactionsProvider);
-                    if (service != null) {
+                    // Use ref.read on the provider directly, but we need the current value.
+                    // Since we are in a callback, we can read the container.
+                    // However, transactionsProvider is now AsyncValue.
+                    final transactionsAsync = ref.read(transactionsProvider);
+
+                    if (service != null && transactionsAsync.hasValue) {
+                      final transactions = transactionsAsync.value!;
                       final plan = await service.generateGoalPlan(
                         goal,
                         transactions,
                       );
-                      // Update goal with plan
-                      // Since Hive objects are mutable and live, we can just set it and save
-                      // But better to use putAt or save()
-                      goal.save(); // HiveObject method
-                      // Actually we need to update the field.
-                      // HiveObject doesn't have copyWith or direct field setters if not mutable in class?
-                      // Wait, fields are final in my model. I need to replace the object.
+
                       final newGoal = Goal(
                         id: goal.id,
                         title: goal.title,
@@ -116,17 +135,28 @@ class GoalsScreen extends ConsumerWidget {
                         deadline: goal.deadline,
                         aiPlan: plan,
                       );
-                      // Find index or key
+
+                      // Find the key to update
                       final key = goal.key;
-                      box.put(key, newGoal);
+                      if (key != null) {
+                        box.put(key, newGoal);
+                      }
                     }
 
                     if (context.mounted) Navigator.pop(context);
                   }
                 },
-                child: const Text('Create Goal'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Create Goal',
+                  style: TextStyle(fontSize: 16),
+                ),
               ),
-              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -145,37 +175,120 @@ class GoalsScreen extends ConsumerWidget {
         expand: false,
         builder: (context, scrollController) => SingleChildScrollView(
           controller: scrollController,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
               Text(
                 goal.title,
                 style: const TextStyle(
-                  fontSize: 24,
+                  fontSize: 28,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Target: ${NumberFormat.simpleCurrency().format(goal.targetAmount)}',
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Target',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      Text(
+                        NumberFormat.simpleCurrency().format(goal.targetAmount),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text(
+                        'Deadline',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      Text(
+                        DateFormat.yMMMd().format(goal.deadline),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              Text('Deadline: ${DateFormat.yMMMd().format(goal.deadline)}'),
+              const SizedBox(height: 24),
               const Divider(),
-              const Text(
-                'AI Financial Plan',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.purple,
-                ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Icon(
+                    Icons.psychology,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'AI Financial Plan',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 16),
               if (goal.aiPlan != null)
-                MarkdownBody(data: goal.aiPlan!)
+                MarkdownBody(
+                  data: goal.aiPlan!,
+                  styleSheet: MarkdownStyleSheet(
+                    h1: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    h2: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    p: const TextStyle(fontSize: 16, height: 1.5),
+                  ),
+                )
               else
-                const Text(
-                  'Generating plan... (Check back later or ensure API Key is set)',
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(child: Text('Generating personalized plan...')),
+                    ],
+                  ),
                 ),
             ],
           ),
@@ -186,79 +299,127 @@ class GoalsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final goals = ref.watch(goalsProvider);
+    final goalsAsync = ref.watch(goalsProvider);
     final currencyFormat = NumberFormat.simpleCurrency();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Financial Goals')),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddGoalDialog(context, ref),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('New Goal'),
       ),
-      body: goals.isEmpty
-          ? const Center(child: Text('No goals set'))
-          : GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 0.8,
+      body: goalsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: \$err')),
+        data: (goals) {
+          if (goals.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.flag_outlined, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No goals set yet',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 18),
+                  ),
+                ],
               ),
-              itemCount: goals.length,
-              itemBuilder: (context, index) {
-                final g = goals[index];
-                final progress = (g.currentAmount / g.targetAmount).clamp(
-                  0.0,
-                  1.0,
-                );
-                return GestureDetector(
-                  onTap: () => _showGoalDetails(context, g),
-                  child: Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            g.title,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+            );
+          }
+
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.85,
+            ),
+            itemCount: goals.length,
+            itemBuilder: (context, index) {
+              final g = goals[index];
+              final progress = (g.currentAmount / g.targetAmount).clamp(
+                0.0,
+                1.0,
+              );
+              return GestureDetector(
+                onTap: () => _showGoalDetails(context, g),
+                child: Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          const Spacer(),
-                          Text(
-                            'Saved: ${currencyFormat.format(g.currentAmount)}',
-                            style: const TextStyle(fontSize: 12),
+                          child: Icon(
+                            Icons.flag,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 20,
                           ),
-                          Text(
-                            'Target: ${currencyFormat.format(g.targetAmount)}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          g.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
                           ),
-                          const SizedBox(height: 8),
-                          LinearProgressIndicator(
-                            value: progress,
-                            backgroundColor: Colors.grey[200],
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const Spacer(),
+                        Text(
+                          'Saved: ${currencyFormat.format(g.currentAmount)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                           ),
-                          const SizedBox(height: 8),
-                          Text(
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Target: ${currencyFormat.format(g.targetAmount)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        LinearProgressIndicator(
+                          value: progress,
+                          backgroundColor: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(4),
+                          minHeight: 6,
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
                             '${(progress * 100).toInt()}%',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                );
-              },
-            ),
+                ).animate().fadeIn(delay: (50 * index).ms).scale(),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

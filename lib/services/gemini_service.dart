@@ -15,7 +15,7 @@ class GeminiService {
       return "Start tracking your expenses to get personalized tips!";
     }
 
-    final prompt = '''
+    const prompt = '''
     Analyze these transactions and give a short, actionable financial tip (max 2 sentences).
     Transactions: \${transactions.map((t) => '\${t.title}: \${t.amount} (\${t.type})').join(', ')}
     ''';
@@ -33,7 +33,7 @@ class GeminiService {
     Goal goal,
     List<Transaction> transactions,
   ) async {
-    final prompt = '''
+    const prompt = '''
     Create a detailed financial plan to reach this goal:
     Goal: \${goal.title}, Target: \${goal.targetAmount}, Current: \${goal.currentAmount}, Deadline: \${goal.deadline}
     
@@ -57,7 +57,7 @@ class GeminiService {
     List<Transaction> transactions,
     List<Goal> goals,
   ) async {
-    final prompt = '''
+    const prompt = '''
     Generate a comprehensive financial report based on this data:
     
     Transactions (last 50):
@@ -86,7 +86,7 @@ class GeminiService {
   }
 
   Future<String> chat(String message, List<Transaction> contextData) async {
-    final prompt = '''
+    const prompt = '''
     You are a helpful financial assistant.
     User context (last 10 transactions):
     \${contextData.take(10).map((t) => '\${t.title}: \${t.amount}').join(', ')}

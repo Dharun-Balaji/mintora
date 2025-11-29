@@ -21,20 +21,48 @@ final settingsBoxProvider = Provider<Box<AppSettings>>((ref) {
   return ref.watch(localDatabaseProvider).settingsBox;
 });
 
-final transactionsProvider = Provider<List<Transaction>>((ref) {
+// Reactive Transactions Provider
+final transactionsProvider = StreamProvider<List<Transaction>>((ref) {
   final box = ref.watch(transactionsBoxProvider);
-  return box.values.toList();
+  // Emit current values immediately
+  // We need to yield the initial state, but StreamProvider does that if we return a Stream that starts with value?
+  // Hive watch() returns a stream of BoxEvent. We need to map that to the list of values.
+
+  return box
+      .watch()
+      .map((event) {
+        return box.values.toList();
+      })
+      .startWith(box.values.toList());
 });
 
-final goalsProvider = Provider<List<Goal>>((ref) {
+// Reactive Goals Provider
+final goalsProvider = StreamProvider<List<Goal>>((ref) {
   final box = ref.watch(goalsBoxProvider);
-  return box.values.toList();
+  return box
+      .watch()
+      .map((event) {
+        return box.values.toList();
+      })
+      .startWith(box.values.toList());
 });
 
-final appSettingsProvider = Provider<AppSettings>((ref) {
+// Reactive Settings Provider
+final appSettingsProvider = StreamProvider<AppSettings>((ref) {
   final box = ref.watch(settingsBoxProvider);
-  if (box.isEmpty) {
-    return AppSettings();
-  }
-  return box.getAt(0)!;
+  return box
+      .watch()
+      .map((event) {
+        if (box.isEmpty) return AppSettings();
+        return box.getAt(0)!;
+      })
+      .startWith(box.isEmpty ? AppSettings() : box.getAt(0)!);
 });
+
+// Extension to emit initial value
+extension StreamStartWith<T> on Stream<T> {
+  Stream<T> startWith(T initial) async* {
+    yield initial;
+    yield* this;
+  }
+}
